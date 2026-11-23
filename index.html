@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>FreshMate 鮮食小管家 Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <main class="shell">
+        <header>
+            <div class="logo">FreshMate 鮮食小管家 
+                <!-- <span class="tag">Q萌版 Demo</span></div><span class="tag">互動原型 ·
+                本機儲存</span> -->
+        </header>
+        <div class="cute-hero">
+            <div><span class="cute-sticker">🌸 你的食物小幫手上線啦！</span>
+                <h1>家裡藏著什麼美味？ 🍳</h1>
+                <p>一起整理食材、守護新鮮、煮出幸福好料理 ♡</p>
+            </div><img class="cute-mascot" src="assets/fridge-buddy.png" alt="微笑的Q版冰箱吉祥物">
+        </div>
+        <section class="stats">
+            <div class="card stat">🧺 食材總數<b id="total">0</b></div>
+            <div class="card stat">⏰ <span id="expiryWindowLabel">3</span> 天內到期 <span class="day-switch"><button
+                        type="button" data-days="1">1天</button><button type="button" data-days="3"
+                        class="selected">3天</button><button type="button" data-days="5">5天</button></span><b
+                    id="expiring">0</b></div>
+            <div class="card stat">🍳 可推薦料理<b id="recipesCount">0</b></div>
+        </section>
+        <div class="layout">
+            <section class="card">
+                <div class="heading">
+                    <h2>我的食庫</h2>
+                    <div class="actions"><select id="fridgeSort" aria-label="冰箱排序">
+                            <option value="status">依狀態顯示</option>
+                            <option value="category">依類別</option>
+                            <option value="purchase">依購買日期</option>
+                            <option value="expiry">依有效日期</option>
+                            <option value="opened">依開封日期</option>
+                        </select><button class="secondary" id="photoBtn">📷 拍照辨識</button><button id="addBtn">＋
+                            新增食材</button></div>
+                </div>
+                <div class="items" id="items"></div>
+                <p class="note">點選「使用」可扣除部分數量，例如雞蛋 10 顆使用 3 顆，剩下 7 顆。食材卡片會顯示購買、開封及有效日期。</p>
+            </section>
+            <section class="card">
+                <div class="heading">
+                    <h2>✨ 智慧料理推薦</h2><select id="recipeSort" aria-label="料理推薦排序" style="width:auto;max-width:190px">
+                        <option value="status">依狀態</option>
+                        <option value="expiring">優先使用即期食材</option>
+                        <option value="available">現有食材可製作</option>
+                        <option value="missing">缺少食材最少</option>
+                        <option value="newest">最新加入食材</option>
+                        <optgroup label="依我的食物篩選" id="foodFilterOptions"></optgroup>
+                    </select><button class="secondary" id="recommendBtn">重新推薦</button>
+                </div>
+                <p style="margin-top:0">優先使用即將到期的食材，減少浪費。</p>
+                <div id="recipes"></div>
+                <p class="note">此 Demo 使用前端規則排序模擬推薦，尚未串接真正 AI 模型。</p>
+            </section>
+        </div>
+        <section class="shop-panel" id="shopping">
+            <div class="shop-head">
+                <div>
+                    <h2>🛒 料理缺料・賣場採購比價</h2>
+                    <div class="shop-summary" id="shopSummary">請在上方料理卡片點選「比較缺料價格」。</div>
+                </div><label>價格排序 <select id="sortStores">
+                        <option value="total">依總金額</option>
+                        <option value="name">依賣場名稱</option>
+                    </select></label>
+            </div>
+            <div class="shop-note">⚠️ 本頁金額全部為「示範模擬價格」，並非 2026 年即時報價。實際價格、包裝、庫存與優惠依各賣場官方通路及門市為準。Demo 尚未串接價格 API。</div>
+            <div id="shopResults" class="shop-empty">選擇一份缺料料理即可開始比較。</div>
+            <div id="shoppingList" class="shop-summary"></div>
+        </section>
+    </main>
+    <div class="modal" id="recipeModal" role="dialog" aria-modal="true" aria-label="料理教學">
+        <div class="dialog recipe-dialog"><button class="outline close-recipe" id="closeRecipe" type="button">✕
+                關閉</button>
+            <div id="recipeDetail"></div>
+        </div>
+    </div>
+    <div class="modal" id="useModal">
+        <div class="dialog">
+            <h2>🥣 使用部分食材</h2>
+            <p id="useDescription"></p><label for="useAmount">本次使用數量（可輸入 0.5 盒、150 克等）</label><input id="useAmount"
+                type="number" min="0.01" step="any" required>
+            <p id="usePreview" style="font-weight:700;color:#16866b" aria-live="polite"></p>
+            <p class="note">確認後扣除庫存；剩餘為 0 時才從清單移除。</p>
+            <div class="actions"><button type="button" class="outline" id="useCancel">取消</button><button type="button"
+                    id="useConfirm">確認扣除</button></div>
+        </div>
+    </div>
+    <div class="modal" id="modal">
+        <div class="dialog">
+            <h2>新增冰箱食材</h2>
+            <form id="form"><label for="name">食材名稱</label><input id="name" required placeholder="例如：番茄"><label
+                    for="qtyNumber">食材數量</label>
+                <div class="qty-entry"><input id="qtyNumber" type="number" min="0.001" step="any" required
+                        value="1"><select id="qtyUnit" aria-label="食材單位">
+                        <option value="顆">顆</option>
+                        <option value="盒">盒</option>
+                        <option value="克">克／公克</option>
+                        <option value="公斤">公斤</option>
+                        <option value="毫升">毫升</option>
+                        <option value="公升">公升</option>
+                        <option value="包">包</option>
+                        <option value="罐">罐</option>
+                        <option value="把">把</option>
+                        <option value="片">片</option>
+                        <option value="份">份</option>
+                    </select></div>
+                <p class="note">可填 0.5 盒（半盒豆腐）、150 克或 0.25 公斤。</p><label>食材類別（可複選）</label>
+                <div id="categoryChecks" class="category-checks"></div><label
+                    for="purchaseDate">購買日期（年／月／日）</label><input id="purchaseDate" type="date" required><label
+                    for="openedDate">開封日期（年／月／日，未開封可留空）</label><input id="openedDate" type="date"><label
+                    for="expiryDate">有效日期（年／月／日）</label><input id="expiryDate" type="date" required>
+                <p class="note">開封日期可留空。若已開封，請依包裝標示的開封後保存建議判斷，原有效日期不一定適用。</p>
+                <div class="actions"><button type="button" class="outline" id="cancel">取消</button><button
+                        type="submit">儲存食材</button></div>
+            </form>
+        </div>
+    </div>
+    <script>const seed = [{id: 1, name: '雞蛋', qty: '10 顆', days: 6}, {id: 2, name: '番茄', qty: '2 顆', days: 2}, {id: 3, name: '豆腐', qty: '1 盒', days: 1}, {id: 4, name: '洋蔥', qty: '1 顆', days: 9}, {id: 5, name: '青江菜', qty: '1 把', days: 3}]; const catalog = [{name: '番茄炒蛋', image: 'assets/tomato-eggs.svg', time: 15, difficulty: '簡單', servings: 2, ingredients: [{name: '番茄', amount: 2, unit: '顆'}, {name: '雞蛋', amount: 3, unit: '顆'}], steps: ['將番茄洗淨切塊，雞蛋打入碗中攪拌均勻。', '熱鍋加入少量油，倒入蛋液炒至八分熟後盛起。', '放入番茄炒軟，加入少量水與適量調味料。', '倒回炒蛋，拌炒至全熟即可盛盤。']}, {name: '家常豆腐炒蛋', image: 'assets/tofu-eggs.svg', time: 20, difficulty: '簡單', servings: 2, ingredients: [{name: '豆腐', amount: 1, unit: '盒'}, {name: '雞蛋', amount: 2, unit: '顆'}, {name: '洋蔥', amount: 0.5, unit: '顆'}], steps: ['豆腐切塊、洋蔥切絲，雞蛋打散。', '洋蔥下鍋炒至透明。', '加入豆腐煎至表面微黃。', '倒入蛋液炒至全熟，調味後盛盤。']}, {name: '青江菜炒豆腐', image: 'assets/greens-tofu.svg', time: 18, difficulty: '簡單', servings: 2, ingredients: [{name: '青江菜', amount: 1, unit: '把'}, {name: '豆腐', amount: 1, unit: '盒'}], steps: ['青江菜洗淨切段，豆腐切塊。', '豆腐下鍋煎至兩面微黃。', '加入青江菜與少量水拌炒。', '待青江菜熟透後調味盛盤。']}, {name: '番茄豆腐湯', image: 'assets/tomato-soup.svg', time: 20, difficulty: '簡單', servings: 2, ingredients: [{name: '番茄', amount: 2, unit: '顆'}, {name: '豆腐', amount: 1, unit: '盒'}], steps: ['番茄洗淨切塊，豆腐切丁。', '將番茄炒軟，倒入適量清水煮滾。', '放入豆腐煮約五分鐘至熟透。', '適量調味後即可享用。']}, {name: '洋蔥炒蛋', image: 'assets/onion-eggs.svg', time: 12, difficulty: '簡單', servings: 2, ingredients: [{name: '洋蔥', amount: 1, unit: '顆'}, {name: '雞蛋', amount: 3, unit: '顆'}], steps: ['洋蔥切絲，雞蛋打散。', '熱鍋炒軟洋蔥。', '倒入蛋液拌炒至全熟。', '依喜好調味即可。']}]; const categoryNames = ['蛋', '豆', '魚', '肉', '豬肉', '牛肉', '羊肉', '雞肉', '主食', '罐頭', '乾貨']; const defaultCategory = {'雞蛋': ['蛋'], '豆腐': ['豆'], '番茄': [], '洋蔥': [], '青江菜': []}; let expiryWindow = 3; const emoji = n => ({'雞蛋': '🥚', '番茄': '🍅', '豆腐': '◻️', '洋蔥': '🧅', '青江菜': '🥬', '牛奶': '🥛', '蘋果': '🍎', '紅蘿蔔': '🥕'})[n] || '🥗'; let foods; try {foods = JSON.parse(localStorage.getItem('freshmate-cute-foods-v2') || localStorage.getItem('freshmate-cute-foods-v1')) || structuredClone(seed)} catch {foods = structuredClone(seed)} foods = foods.map(f => ({...f, purchaseDate: f.purchaseDate || '', openedDate: f.openedDate || '', expiryDate: f.expiryDate || (typeof f.days === 'number' ? addLegacyDate(f.days) : ''), categories: Array.isArray(f.categories) ? f.categories : (defaultCategory[f.name] || [])})); localStorage.setItem('freshmate-cute-foods-v2', JSON.stringify(foods)); function addLegacyDate(n) {const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')} const el = id => document.getElementById(id), esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); function todayISO() {const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')} function addDaysISO(n) {const d = new Date(todayISO() + 'T12:00:00'); d.setDate(d.getDate() + n); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')} function daysUntil(v) {if (!v) return 99999; const a = new Date(todayISO() + 'T12:00:00'), b = new Date(v + 'T12:00:00'); return Math.round((b - a) / 86400000)} function foodDays(f) {return f.expiryDate ? daysUntil(f.expiryDate) : Number(f.days ?? 99999)} function dateLabel(v) {return v ? v.replaceAll('-', '/') : '未開封'} function save() {localStorage.setItem('freshmate-cute-foods-v2', JSON.stringify(foods)); render()} function render() {
+            el('total').textContent = foods.length; el('expiryWindowLabel').textContent = expiryWindow; el('expiring').textContent = foods.filter(f => foodDays(f) >= 0 && foodDays(f) <= expiryWindow).length; const sort = el('fridgeSort').value; const sortedFoods = [...foods].sort((a, b) => {if (sort === 'category') return (a.categories?.[0] || '未分類').localeCompare(b.categories?.[0] || '未分類', 'zh-Hant') || a.name.localeCompare(b.name, 'zh-Hant'); if (sort === 'purchase') return (b.purchaseDate || '').localeCompare(a.purchaseDate || ''); if (sort === 'expiry') return foodDays(a) - foodDays(b); if (sort === 'opened') return (b.openedDate || '').localeCompare(a.openedDate || ''); return (foodDays(a) <= 1 ? 0 : foodDays(a) <= expiryWindow ? 1 : 2) - (foodDays(b) <= 1 ? 0 : foodDays(b) <= expiryWindow ? 1 : 2) || foodDays(a) - foodDays(b)}); el('items').innerHTML = sortedFoods.length ? sortedFoods.map(f => `<div class="item"><div class="emoji">${emoji(f.name)}</div><div class="info"><strong>${esc(f.name)}</strong><small>${esc(f.qty)} · ${foodDays(f) === 0 ? '今日到期' : foodDays(f) < 0 ? `已過期 ${-foodDays(f)} 天` : `${foodDays(f)} 天後到期`}<br>購買：${dateLabel(f.purchaseDate)} · 開封：${dateLabel(f.openedDate)} · 有效：${dateLabel(f.expiryDate || (Number.isFinite(Number(f.days)) ? addDaysISO(Number(f.days)) : ''))}<br>類別：${esc((f.categories || []).join("、") || "未分類")}</small></div><span class="status ${foodDays(f) <= 1 ? 'danger' : foodDays(f) <= expiryWindow ? 'warn' : ''}">${foodDays(f) <= 1 ? '優先使用' : foodDays(f) <= expiryWindow ? '即將到期' : '保存中'}</span><div class="actions"><button class="outline" data-use="${f.id}">使用</button><button class="outline" data-del="${f.id}">刪除</button></div></div>`).join('') : '<div class="empty">冰箱目前沒有食材，新增一項開始吧！</div>';// 每次庫存變動都重新建立下拉選單；只顯示仍有正數庫存的食材。
+            const selector = el('recipeSort');
+            const previousSelection = selector.value;
+            const ingredientNames = [...new Set(foods.filter(f => {const q = parseQty(f.qty); return q && q.amount > 0}).map(f => f.name.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+            const group = el('foodFilterOptions');
+            group.replaceChildren();
+            for (const name of ingredientNames) {
+                const option = document.createElement('option'); option.value = 'food:' + name; option.textContent = '🥗 ' + name; group.appendChild(option);
+            }
+            selector.value = previousSelection;
+            if (selector.selectedIndex < 0) selector.value = 'status'; // 食材用完後自動回到預設排序
+            const mode = selector.value;
+
+            const ranked = catalog.map(r => {
+                const matches = r.ingredients.map(i => ({ingredient: i, available: recipeInventory(i.name, i.unit)}));
+                const have = matches.filter(x => x.available >= x.ingredient.amount).map(x => x.ingredient.name);
+                const partial = matches.filter(x => x.available > 0).map(x => x.ingredient.name);
+                const missing = matches.filter(x => x.available < x.ingredient.amount).map(x => x.ingredient.name);
+                const urgency = foods.filter(f => partial.includes(f.name)).reduce((a, f) => a + Math.max(0, 4 - foodDays(f)), 0);
+                const newest = foods.filter(f => partial.includes(f.name)).reduce((max, f) => Math.max(max, Number(f.addedAt || f.id) || 0), 0);
+                return {...r, have, partial, missing, urgency, newest, score: have.length * 10 + partial.length * 4 + urgency - missing.length * 6};
+            }).filter(r => r.partial.length > 0).filter(r => !mode.startsWith('food:') || r.ingredients.some(i => i.name === mode.slice(5)))
+                .filter(r => mode !== 'available' || r.missing.length === 0)
+                .sort((a, b) => {
+                    if (mode === 'expiring') return b.urgency - a.urgency || b.score - a.score;
+                    if (mode === 'missing' || mode === 'available') return a.missing.length - b.missing.length || b.score - a.score;
+                    if (mode === 'newest') return b.newest - a.newest || b.score - a.score;
+                    return b.score - a.score;
+                });
+            el('recipesCount').textContent = ranked.length; el('recipes').innerHTML = ranked.length ? ranked.map(r => `<div class="recipe"><img class="recipe-cover" src="${r.image}" alt="${r.name}料理示意插畫"><h3>${r.name}</h3><div class="score">足量 ${r.have.length}/${r.ingredients.length} 項食材 · ${r.time} 分鐘 · ${r.servings} 人份</div><p>庫存包含：${r.partial.map(esc).join('、')}</p>${r.missing.length ? `<p>缺少：${r.missing.map(esc).join('、')}</p>` : '<p>食材種類已齊全，請查看份量是否足夠。</p>'}<div class="actions"><button class="secondary" data-recipe="${catalog.indexOf(catalog.find(x => x.name === r.name))}">📖 食譜與料理教學</button>${r.missing.length ? `<button class="outline" data-compare="${esc(r.name)}">比較缺料價格</button>` : ''}</div></div>`).join('') : '<div class="empty">新增食材後就會出現推薦料理。</div>'
+        } el('addBtn').onclick = () => {el('purchaseDate').value = todayISO(); el('modal').classList.add('show')}; el('cancel').onclick = () => el('modal').classList.remove('show'); el('modal').onclick = e => {if (e.target === el('modal')) el('modal').classList.remove('show')}; el('form').onsubmit = e => {e.preventDefault(); const purchaseDate = el('purchaseDate').value, openedDate = el('openedDate').value, expiryDate = el('expiryDate').value; if (openedDate && openedDate < purchaseDate) {alert('開封日期不能早於購買日期'); return } if (openedDate && openedDate > todayISO()) {alert('開封日期不能是未來日期'); return } if (purchaseDate > todayISO()) {alert('購買日期不能是未來日期'); return } foods.push({id: Date.now(), addedAt: Date.now(), name: el('name').value.trim(), qty: `${Number(el('qtyNumber').value)} ${el('qtyUnit').value}`, categories: [...document.querySelectorAll('#categoryChecks input:checked')].map(x => x.value), purchaseDate, openedDate, expiryDate}); save(); el('form').reset(); el('qtyNumber').value = 1; el('purchaseDate').value = todayISO(); el('modal').classList.remove('show')}; document.addEventListener('click', e => {const b = e.target.closest('button'); if (!b) return; if (b.dataset.del) {foods = foods.filter(f => f.id !== Number(b.dataset.del)); save()} if (b.dataset.use) {let f = foods.find(f => f.id === Number(b.dataset.use)); if (f) openUseModal(f)} if (b.dataset.recipe !== undefined) openRecipe(Number(b.dataset.recipe)); if (b.dataset.compare) {compareRecipe(b.dataset.compare)} if (b.dataset.shop) {const t = '採買清單：' + b.dataset.shop; navigator.clipboard?.writeText(t).then(() => alert('已複製：' + t)).catch(() => prompt('請複製採買清單：', t)) || (!navigator.clipboard && prompt('請複製採買清單：', t))} }); el('fridgeSort').addEventListener('change', render); document.querySelectorAll('[data-days]').forEach(btn => btn.addEventListener('click', () => {expiryWindow = Number(btn.dataset.days); document.querySelectorAll('[data-days]').forEach(x => x.classList.toggle('selected', x === btn)); render()})); el('categoryChecks').innerHTML = categoryNames.map(c => `<label class="category-pill"><input type="checkbox" value="${c}">${c}</label>`).join(''); el('name').addEventListener('input', () => {const name = el('name').value.trim(); if (name === '豆腐') {el('qtyUnit').value = '盒'} else if (name === '雞蛋') {el('qtyUnit').value = '顆'} }); el('recommendBtn').onclick = render; el('recipeSort').addEventListener('change', render); let selectedUseId = null; function parseQty(q) {const m = String(q).trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*(.*)$/); return m ? {amount: Number(m[1]), unit: m[2] || '份'} : null} function fmt(n) {return Number(n.toFixed(3)).toString()} function openUseModal(f) {const q = parseQty(f.qty); if (!q || !(q.amount > 0)) {alert('此食材數量格式無法計算，請改用「10 顆」「500 克」等格式重新新增。'); return } selectedUseId = f.id; el('useDescription').textContent = `${f.name}｜目前庫存 ${fmt(q.amount)} ${q.unit}`; el('useAmount').value = Math.min(1, q.amount); el('useAmount').max = q.amount; el('useAmount').step = 'any'; el('useModal').classList.add('show'); updateUsePreview()} function updateUsePreview() {const f = foods.find(x => x.id === selectedUseId), q = f && parseQty(f.qty), used = Number(el('useAmount').value); el('usePreview').textContent = q && used > 0 && used <= q.amount ? `使用 ${fmt(used)} ${q.unit} → 剩餘 ${fmt(q.amount - used)} ${q.unit}` : '請輸入大於 0 且不超過庫存的數量'} el('useAmount').addEventListener('input', updateUsePreview); el('useCancel').onclick = () => el('useModal').classList.remove('show'); el('useModal').onclick = e => {if (e.target === el('useModal')) el('useModal').classList.remove('show')}; el('useConfirm').onclick = () => {const f = foods.find(x => x.id === selectedUseId); if (!f) return; const q = parseQty(f.qty), used = Number(el('useAmount').value); if (!Number.isFinite(used) || used <= 0 || used > q.amount) {alert('使用數量必須大於 0，且不能超過現有庫存。'); return } const remain = Number((q.amount - used).toFixed(3)); if (remain <= 0) foods = foods.filter(x => x.id !== f.id); else f.qty = `${fmt(remain)} ${q.unit}`; el('useModal').classList.remove('show'); save(); if (activeRecipeName) drawComparison()}; el('photoBtn').onclick = () => alert('📷 拍照辨識為下一階段功能。正式版可串接影像辨識模型，並讓使用者確認辨識結果。'); render();</script>
+    <script>
+        // 所有價位僅供 UI 展示，不是商家實際價格。
+        const mockPrices = {
+            '雞蛋': {'全聯': 69, '家樂福': 72, '愛買': 75}, '番茄': {'全聯': 45, '家樂福': 49, '愛買': 42},
+            '豆腐': {'全聯': 28, '家樂福': 32, '愛買': 30}, '洋蔥': {'全聯': 35, '家樂福': 33, '愛買': 38},
+            '青江菜': {'全聯': 39, '家樂福': 42, '愛買': 36}, '牛奶': {'全聯': 95, '家樂福': 99, '愛買': 92},
+            '紅蘿蔔': {'全聯': 29, '家樂福': 32, '愛買': 30}, '白飯': {'全聯': 35, '家樂福': 38, '愛買': 36}
+        };
+        const storeLinks = {'全聯': 'https://www.pxmart.com.tw/', '家樂福': 'https://www.carrefour.com.tw/', '愛買': 'https://www.fe-amart.com.tw/'};
+        let activeRecipeName = null;
+        function compareRecipe(name) {activeRecipeName = name; drawComparison(); document.getElementById('shopping').scrollIntoView({behavior: 'smooth', block: 'start'})}
+        function drawComparison() {
+            const recipe = catalog.find(r => r.name === activeRecipeName); if (!recipe) return;
+            const missing = recipe.ingredients.filter(i => recipeInventory(i.name, i.unit) < i.amount).map(i => i.name);
+            const summary = document.getElementById('shopSummary'), results = document.getElementById('shopResults'), list = document.getElementById('shoppingList');
+            summary.textContent = `「${recipe.name}」需要 ${recipe.ingredients.length} 種食材，缺少 ${missing.length} 種：${missing.join('、') || '無'}`;
+            if (!missing.length) {results.className = 'shop-empty'; results.textContent = '🎉 冰箱食材已齊全，不需要額外採買！'; list.textContent = ''; return }
+            let stores = Object.keys(storeLinks).map(store => ({store, items: missing.map(food => ({food, price: mockPrices[food]?.[store] ?? null}))}));
+            stores.forEach(x => x.total = x.items.every(i => i.price !== null) ? x.items.reduce((a, i) => a + i.price, 0) : null);
+            if (document.getElementById('sortStores').value === 'total') stores.sort((a, b) => (a.total ?? Infinity) - (b.total ?? Infinity)); else stores.sort((a, b) => a.store.localeCompare(b.store, 'zh-Hant'));
+            results.className = 'shop-grid';
+            results.innerHTML = stores.map((x, i) => `<div class="shop-card"><h3>${x.store} ${i === 0 && document.getElementById('sortStores').value === 'total' ? '🏷️' : ''}</h3>${x.items.map(it => `<div class="shop-row"><span>${esc(it.food)} <small>（示範 1 份）</small></span><strong>${it.price === null ? '未提供' : `NT$ ${it.price}`}</strong></div>`).join('')}<div class="shop-total">示範總價：${x.total === null ? '無法計算' : `NT$ ${x.total}`}</div><a href="${storeLinks[x.store]}" target="_blank" rel="noopener noreferrer">前往${x.store}官方網站 ↗</a><div><button class="outline shop-btn" data-copy-store="${x.store}">複製此賣場清單</button></div></div>`).join('');
+            const cheapest = missing.map(food => {let opts = stores.map(x => ({store: x.store, price: mockPrices[food]?.[x.store]})).filter(x => Number.isFinite(x.price)).sort((a, b) => a.price - b.price); return {food, ...(opts[0] || {store: '未提供', price: 0})}});
+            const total = cheapest.reduce((sum, x) => sum + x.price, 0);
+            list.innerHTML = `<strong>跨賣場最低示範價：</strong>NT$ ${total}（未計運費、交通費、會員折扣；不代表實際最省）<br>${cheapest.map(x => `${esc(x.food)}：${x.store} NT$ ${x.price}`).join(' ｜ ')} <button class="outline shop-btn" id="copyCheapest">複製跨賣場清單</button>`;
+            document.getElementById('copyCheapest').onclick = () => copyShopText('跨賣場示範採買清單：\n' + cheapest.map(x => `${x.food} - ${x.store} NT$ ${x.price}`).join('\n'));
+            results.querySelectorAll('[data-copy-store]').forEach(btn => btn.onclick = () => {const x = stores.find(x => x.store === btn.dataset.copyStore); copyShopText(`${recipe.name}｜${x.store}（模擬價格）\n` + x.items.map(it => `${it.food}：NT$ ${it.price ?? '未提供'}`).join('\n') + `\n示範合計：NT$ ${x.total ?? '無法計算'}`)});
+        }
+        function copyShopText(t) {if (navigator.clipboard && window.isSecureContext) {navigator.clipboard.writeText(t).then(() => alert('已複製採買清單')).catch(() => prompt('請複製：', t))} else prompt('請複製：', t)}
+        document.getElementById('sortStores').addEventListener('change', drawComparison);
+    </script>
+    <script>
+        let selectedRecipeIndex = null;
+        function recipeInventory(name, unit) {return foods.filter(f => f.name === name).reduce((sum, f) => {const q = parseQty(f.qty); if (!q) return sum; if (q.unit === unit) return sum + q.amount; if (q.unit === '公斤' && unit === '克') return sum + q.amount * 1000; if (q.unit === '克' && unit === '公斤') return sum + q.amount / 1000; if (q.unit === '公升' && unit === '毫升') return sum + q.amount * 1000; if (q.unit === '毫升' && unit === '公升') return sum + q.amount / 1000; return sum}, 0)}
+        function openRecipe(idx) {
+            selectedRecipeIndex = idx; const r = catalog[idx]; if (!r) return;
+            const rows = r.ingredients.map((i, k) => {const available = recipeInventory(i.name, i.unit); const lack = Math.max(0, i.amount - available); return `<tr><td>${esc(i.name)}</td><td>${fmt(i.amount)} ${esc(i.unit)}</td><td>${fmt(available)} ${esc(i.unit)}</td><td>${lack > 0 ? `<span style="color:#b56a17">缺 ${fmt(lack)} ${esc(i.unit)}</span>` : '<span style="color:#16866b">充足</span>'}</td></tr>`}).join('');
+            el('recipeDetail').innerHTML = `<img class="hero" src="${r.image}" alt="${esc(r.name)}料理示意插畫"><h2 style="margin:16px 0 6px">${esc(r.name)}</h2><div class="recipe-meta">⏱ ${r.time} 分鐘　·　🍽 ${r.servings} 人份　·　👩‍🍳 ${r.difficulty}</div><p class="note">圖片為本 Demo 自製料理示意插畫，非實際成品照片。</p><h3>🥬 食材清單</h3><table class="recipe-table"><thead><tr><th>食材</th><th>所需</th><th>庫存</th><th>狀態</th></tr></thead><tbody>${rows}</tbody></table><h3>👩‍🍳 逐步料理教學</h3>${r.steps.map((step, k) => `<div class="recipe-step"><span class="step-no">${k + 1}</span><div>${esc(step)}</div></div>`).join('')}<h3>✅ 完成料理・確認扣庫存</h3><p class="note">可調整實際用量，只有點擊「確認完成並扣除」才會更新冰箱庫存。缺少的食材不會扣成負數。</p>${r.ingredients.map((i, k) => `<label for="cook-${k}">${esc(i.name)}（目前 ${fmt(recipeInventory(i.name, i.unit))} ${esc(i.unit)}）</label><div class="actions" style="align-items:center"><input id="cook-${k}" type="number" min="0" step="any" value="${fmt(Math.min(i.amount, recipeInventory(i.name, i.unit)))}"><span>${esc(i.unit)}　<small>食譜建議 ${fmt(i.amount)} ${esc(i.unit)}</small></span></div>`).join('')}<p class="warnline">提醒：食材不足時請先採買或調整食譜。確認後僅扣除現有庫存，使用量可為 0。</p><div class="actions" style="margin-top:18px"><button class="outline" id="recipeCompare">🛒 缺料採購比價</button><button id="cookConfirm">確認完成並扣除庫存</button></div>`;
+            el('recipeModal').classList.add('show'); el('recipeCompare').onclick = () => {el('recipeModal').classList.remove('show'); compareRecipe(r.name)}; el('cookConfirm').onclick = confirmCook;
+        }
+        function confirmCook() {
+            const r = catalog[selectedRecipeIndex]; if (!r) return; const deductions = []; for (let k = 0; k < r.ingredients.length; k++) {const i = r.ingredients[k], v = Number(el('cook-' + k).value), available = recipeInventory(i.name, i.unit); if (!Number.isFinite(v) || v < 0 || v > available + 1e-8) {alert(`${i.name} 的扣除量必須介於 0 與 ${fmt(available)} ${i.unit} 之間。`); return } deductions.push({name: i.name, unit: i.unit, amount: v})} if (!deductions.some(x => x.amount > 0)) {alert('請至少輸入一項實際使用數量。'); return } const message = deductions.filter(x => x.amount > 0).map(x => `${x.name} ${fmt(x.amount)} ${x.unit}`).join('、'); if (!confirm(`確定已完成「${r.name}」並扣除：
+${message}？`)) return;
+            for (const d of deductions) {let remain = d.amount; for (const f of foods.filter(f => f.name === d.name && parseQty(f.qty)?.unit === d.unit)) {if (remain <= 0) break; const q = parseQty(f.qty), take = Math.min(remain, q.amount); remain = Number((remain - take).toFixed(3)); const newQty = Number((q.amount - take).toFixed(3)); if (newQty <= 0) foods = foods.filter(x => x.id !== f.id); else f.qty = `${fmt(newQty)} ${q.unit}`} }
+            el('recipeModal').classList.remove('show'); save(); if (activeRecipeName) drawComparison(); alert('料理完成！已更新冰箱剩餘庫存。')
+        }
+        el('closeRecipe').onclick = () => el('recipeModal').classList.remove('show'); el('recipeModal').addEventListener('click', e => {if (e.target === el('recipeModal')) el('recipeModal').classList.remove('show')});
+    </script>
+</body>
+
+</html>
